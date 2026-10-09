@@ -47,7 +47,7 @@ export default function ActiveOrdersPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white tracking-tight">Active Orders</h1>
-          <p className="text-xs text-zinc-400 mt-1">
+          <p className="hidden sm:block text-xs text-zinc-400 mt-1">
             Monitor incoming SMS in real-time. Orders auto-expire after 5 minutes if no SMS is
             received.
           </p>

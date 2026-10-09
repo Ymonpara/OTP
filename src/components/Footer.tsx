@@ -84,7 +84,7 @@ export const Footer: React.FC = () => {
               </li>
               <li>
                 <Link href="/admin" className="hover:text-purple-400 transition">
-                  Admin Console
+                  Superadmin Portal (Key Required)
                 </Link>
               </li>
               <li>

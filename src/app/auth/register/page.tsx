@@ -8,7 +8,7 @@ import { Radio, Lock, Mail, User, Phone, ArrowRight, Sparkles, Check } from 'luc
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { switchRole } = usePlatform();
+  const { loginAsDummyCustomer } = usePlatform();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -20,9 +20,9 @@ export default function RegisterPage() {
     e.preventDefault();
     setIsLoading(true);
     setTimeout(() => {
-      switchRole('customer');
+      loginAsDummyCustomer({ name: name || 'Demo User', email: email || 'user@otpwallet.com' });
       router.push('/dashboard/buy-number');
-    }, 600);
+    }, 400);
   };
 
   return (

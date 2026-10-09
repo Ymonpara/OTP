@@ -104,3 +104,19 @@ body {
   color: #f472b6;
   border: 1px solid rgba(236, 72, 153, 0.3);
 }
+
+/* Left-to-Right Sidebar Drawer Slide Animation */
+@keyframes slideInLeft {
+  from {
+    transform: translateX(-100%);
+    opacity: 0.7;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in-left {
+  animation: slideInLeft 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}

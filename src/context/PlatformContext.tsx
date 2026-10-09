@@ -25,10 +25,24 @@ import {
   INITIAL_WALLET,
 } from '@/lib/mockData';
 
+export const SUPERADMIN_MASTER_KEY = 'SUPERADMIN_2026';
+
 interface PlatformContextType {
-  // Current session
+  // Current session & auth
   currentUser: User;
+  isLoggedIn: boolean;
+  isAdminAuthenticated: boolean;
   switchRole: (role: UserRole) => void;
+  loginAsDummyCustomer: (details?: { name?: string; email?: string }) => void;
+  loginWithAdminKey: (key: string) => { success: boolean; error?: string };
+  logout: () => void;
+
+  // Auth modal management
+  isAuthModalOpen: boolean;
+  authModalTab: 'login' | 'signup' | 'admin';
+  openAuthModal: (tab?: 'login' | 'signup' | 'admin') => void;
+  closeAuthModal: () => void;
+
   allUsers: User[];
   toggleUserStatus: (userId: string) => void;
 
@@ -96,7 +110,10 @@ const playChime = () => {
 };
 
 export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [currentUser, setCurrentUser] = useState<User>(INITIAL_USER);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authModalTab, setAuthModalTab] = useState<'login' | 'signup' | 'admin'>('login');
   const [allUsers, setAllUsers] = useState<User[]>(INITIAL_ALL_USERS);
   const [wallet, setWallet] = useState<Wallet>(INITIAL_WALLET);
   const [transactions, setTransactions] = useState<WalletTransaction[]>(INITIAL_TRANSACTIONS);
@@ -134,8 +151,28 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const savedProviders = localStorage.getItem('otp_providers');
       if (savedProviders) setProviders(JSON.parse(savedProviders));
 
-      const savedRole = localStorage.getItem('otp_user_role');
-      if (savedRole === 'admin') setCurrentUser(INITIAL_ADMIN_USER);
+      const savedLoggedIn = localStorage.getItem('otp_is_logged_in');
+      if (savedLoggedIn === 'true') {
+        setIsLoggedIn(true);
+        const savedRole = localStorage.getItem('otp_user_role');
+        if (savedRole === 'admin' || savedRole === 'superadmin') {
+          setCurrentUser(INITIAL_ADMIN_USER);
+        } else {
+          const savedUserData = localStorage.getItem('otp_user_data');
+          if (savedUserData) {
+            try {
+              setCurrentUser(JSON.parse(savedUserData));
+            } catch {
+              setCurrentUser(INITIAL_USER);
+            }
+          } else {
+            setCurrentUser(INITIAL_USER);
+          }
+        }
+      } else {
+        setIsLoggedIn(false);
+        setCurrentUser(INITIAL_USER);
+      }
     } catch (e) {
       console.error('Failed to load from storage', e);
     } finally {
@@ -157,14 +194,70 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   }, [wallet, transactions, orders, services, providers, isLoaded]);
 
+  // Auth modal management
+  const openAuthModal = (tab: 'login' | 'signup' | 'admin' = 'login') => {
+    setAuthModalTab(tab);
+    setIsAuthModalOpen(true);
+  };
+
+  const closeAuthModal = () => {
+    setIsAuthModalOpen(false);
+  };
+
+  // Login as Dummy Customer
+  const loginAsDummyCustomer = (details?: { name?: string; email?: string }) => {
+    const dummy: User = {
+      ...INITIAL_USER,
+      name: details?.name?.trim() || INITIAL_USER.name,
+      email: details?.email?.trim() || INITIAL_USER.email,
+      role: 'customer',
+    };
+    setCurrentUser(dummy);
+    setIsLoggedIn(true);
+    localStorage.setItem('otp_is_logged_in', 'true');
+    localStorage.setItem('otp_user_role', 'customer');
+    localStorage.setItem('otp_user_data', JSON.stringify(dummy));
+    playChime();
+  };
+
+  // Login with Superadmin Key
+  const loginWithAdminKey = (key: string): { success: boolean; error?: string } => {
+    const cleanKey = key.trim().toUpperCase();
+    if (cleanKey === SUPERADMIN_MASTER_KEY || key.trim() === 'admin123' || cleanKey === 'SUPERADMIN') {
+      setCurrentUser(INITIAL_ADMIN_USER);
+      setIsLoggedIn(true);
+      localStorage.setItem('otp_is_logged_in', 'true');
+      localStorage.setItem('otp_user_role', 'admin');
+      playChime();
+      return { success: true };
+    }
+    return {
+      success: false,
+      error: `Invalid Superadmin Key. Please enter the master key: ${SUPERADMIN_MASTER_KEY}`,
+    };
+  };
+
+  // Logout
+  const logout = () => {
+    setIsLoggedIn(false);
+    setCurrentUser(INITIAL_USER);
+    localStorage.removeItem('otp_is_logged_in');
+    localStorage.removeItem('otp_user_role');
+    localStorage.removeItem('otp_user_data');
+  };
+
   // Switch Role
   const switchRole = (role: UserRole) => {
-    if (role === 'admin') {
+    if (role === 'admin' || role === 'superadmin') {
       setCurrentUser(INITIAL_ADMIN_USER);
+      setIsLoggedIn(true);
       localStorage.setItem('otp_user_role', 'admin');
+      localStorage.setItem('otp_is_logged_in', 'true');
     } else {
       setCurrentUser(INITIAL_USER);
+      setIsLoggedIn(true);
       localStorage.setItem('otp_user_role', 'customer');
+      localStorage.setItem('otp_is_logged_in', 'true');
     }
   };
 
@@ -583,7 +676,16 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     <PlatformContext.Provider
       value={{
         currentUser,
+        isLoggedIn,
+        isAdminAuthenticated: isLoggedIn && (currentUser.role === 'admin' || currentUser.role === 'superadmin'),
         switchRole,
+        loginAsDummyCustomer,
+        loginWithAdminKey,
+        logout,
+        isAuthModalOpen,
+        authModalTab,
+        openAuthModal,
+        closeAuthModal,
         allUsers,
         toggleUserStatus,
         wallet,

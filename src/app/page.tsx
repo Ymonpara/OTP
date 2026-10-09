@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 
 export default function LandingPage() {
-  const { services, countries } = usePlatform();
+  const { services, countries, openAuthModal } = usePlatform();
   const [selectedServiceSlug, setSelectedServiceSlug] = useState('whatsapp');
   const [selectedCountryCode, setSelectedCountryCode] = useState('IN');
 
@@ -51,8 +51,6 @@ export default function LandingPage() {
                 <span className="text-xs font-bold text-emerald-400">
                   Multi-Provider Carrier Network
                 </span>
-                <span className="text-xs text-zinc-600">|</span>
-                <span className="text-xs text-blue-400 font-medium">5SIM & OnlineSIM Integrated</span>
               </div>
 
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-[1.1]">
@@ -77,13 +75,14 @@ export default function LandingPage() {
                   <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                 </Link>
 
-                <Link
-                  href="/admin"
-                  className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-purple-900/40 hover:bg-purple-900/60 text-purple-300 border border-purple-700/60 font-semibold text-sm transition flex items-center justify-center gap-2"
+                <button
+                  type="button"
+                  onClick={() => openAuthModal('login')}
+                  className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700 font-semibold text-sm transition flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <ShieldCheck className="w-4 h-4 text-purple-400" />
-                  <span>Launch Admin Portal</span>
-                </Link>
+                  <Sparkles className="w-4 h-4 text-emerald-400" />
+                  <span>Try Demo Account</span>
+                </button>
               </div>
 
               {/* Trust Badges (Multi-Color Highlights) */}
@@ -152,11 +151,10 @@ export default function LandingPage() {
                           key={s.id}
                           type="button"
                           onClick={() => setSelectedServiceSlug(s.slug)}
-                          className={`flex items-center justify-between p-2.5 rounded-xl border text-xs font-medium transition cursor-pointer ${
-                            selectedServiceSlug === s.slug
-                              ? 'bg-blue-600/20 border-blue-500 text-white'
-                              : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:border-zinc-700'
-                          }`}
+                          className={`flex items-center justify-between p-2.5 rounded-xl border text-xs font-medium transition cursor-pointer ${selectedServiceSlug === s.slug
+                            ? 'bg-blue-600/20 border-blue-500 text-white'
+                            : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:border-zinc-700'
+                            }`}
                         >
                           <div className="flex items-center gap-2">
                             <ServiceIcon name={s.iconName} className="w-4 h-4" />

@@ -1,39 +1,30 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { usePlatform } from '@/context/PlatformContext';
 import {
   User,
-  Key,
   Bell,
-  Shield,
-  Copy,
-  Check,
-  RefreshCw,
-  Lock,
   Save,
   CheckCircle2,
+  Trash2,
+  AlertTriangle,
+  X,
+  ShieldAlert,
 } from 'lucide-react';
 
 export default function SettingsPage() {
-  const { currentUser } = usePlatform();
-  const [apiKey, setApiKey] = useState('otp_live_89f92ba491a27e492b4920');
-  const [copiedKey, setCopiedKey] = useState(false);
+  const router = useRouter();
+  const { currentUser, logout } = usePlatform();
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [emailAlerts, setEmailAlerts] = useState(true);
-  const [webhookUrl, setWebhookUrl] = useState('https://myapp.com/api/webhooks/otp');
   const [isSaved, setIsSaved] = useState(false);
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(apiKey);
-    setCopiedKey(true);
-    setTimeout(() => setCopiedKey(false), 2000);
-  };
-
-  const handleRegenerateKey = () => {
-    const newKey = `otp_live_${Math.random().toString(36).substring(2, 14)}${Math.random().toString(36).substring(2, 14)}`;
-    setApiKey(newKey);
-  };
+  // Danger Space: Delete Account Modal & State
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [confirmInput, setConfirmInput] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,12 +32,22 @@ export default function SettingsPage() {
     setTimeout(() => setIsSaved(false), 2500);
   };
 
+  const handleDeleteAccount = () => {
+    if (confirmInput.trim().toUpperCase() !== 'CONFIRM') return;
+    setIsDeleting(true);
+
+    setTimeout(() => {
+      logout();
+      router.push('/');
+    }, 800);
+  };
+
   return (
     <div className="space-y-8 max-w-4xl">
       <div>
-        <h1 className="text-2xl font-bold text-white tracking-tight">Account & Developer Settings</h1>
+        <h1 className="text-2xl font-bold text-white tracking-tight">Account Settings</h1>
         <p className="text-xs text-zinc-400 mt-1">
-          Manage your personal details, developer API tokens, notification preferences, and security.
+          Manage your personal details, notification preferences, and account security.
         </p>
       </div>
 
@@ -110,62 +111,6 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* Developer API & Webhooks */}
-      <div className="p-6 rounded-2xl glass-panel border border-zinc-800 space-y-4">
-        <div className="flex items-center gap-2 text-white font-bold text-sm">
-          <Key className="w-4 h-4 text-teal-400" />
-          <span>Developer REST API Access</span>
-        </div>
-        <p className="text-xs text-zinc-400">
-          Automate number purchases and receive incoming SMS callbacks programmatically via HTTP
-          webhooks.
-        </p>
-
-        <div className="space-y-3 text-xs">
-          <div>
-            <label className="block text-zinc-400 mb-1">API Secret Key</label>
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                readOnly
-                value={apiKey}
-                className="w-full px-3.5 py-2.5 bg-zinc-950 border border-zinc-800 rounded-xl text-zinc-300 font-mono text-xs"
-              />
-              <button
-                type="button"
-                onClick={handleCopy}
-                className="px-3.5 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 transition shrink-0"
-              >
-                {copiedKey ? (
-                  <Check className="w-4 h-4 text-emerald-400" />
-                ) : (
-                  <Copy className="w-4 h-4" />
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={handleRegenerateKey}
-                className="p-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200 transition shrink-0"
-                title="Regenerate Key"
-              >
-                <RefreshCw className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-zinc-400 mb-1">SMS Webhook URL (POST)</label>
-            <input
-              type="url"
-              value={webhookUrl}
-              onChange={(e) => setWebhookUrl(e.target.value)}
-              placeholder="https://yourserver.com/webhooks/otp"
-              className="w-full px-3.5 py-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-zinc-100 font-mono text-xs focus:outline-none focus:border-emerald-500"
-            />
-          </div>
-        </div>
-      </div>
-
       {/* Notifications & Audio */}
       <div className="p-6 rounded-2xl glass-panel border border-zinc-800 space-y-4">
         <div className="flex items-center gap-2 text-white font-bold text-sm">
@@ -185,7 +130,7 @@ export default function SettingsPage() {
               type="checkbox"
               checked={soundEnabled}
               onChange={(e) => setSoundEnabled(e.target.checked)}
-              className="w-4 h-4 rounded text-emerald-500 bg-zinc-800 border-zinc-700"
+              className="w-4 h-4 rounded text-emerald-500 bg-zinc-800 border-zinc-700 cursor-pointer"
             />
           </div>
 
@@ -200,21 +145,91 @@ export default function SettingsPage() {
               type="checkbox"
               checked={emailAlerts}
               onChange={(e) => setEmailAlerts(e.target.checked)}
-              className="w-4 h-4 rounded text-emerald-500 bg-zinc-800 border-zinc-700"
+              className="w-4 h-4 rounded text-emerald-500 bg-zinc-800 border-zinc-700 cursor-pointer"
             />
           </div>
         </div>
       </div>
 
       {/* Save Button */}
-      <button
-        type="button"
-        onClick={handleSave}
-        className="px-6 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-semibold text-xs transition flex items-center gap-2 shadow-lg shadow-emerald-500/20"
-      >
-        <Save className="w-4 h-4" />
-        <span>Save Settings</span>
-      </button>
+      <div>
+        <button
+          type="button"
+          onClick={handleSave}
+          className="px-6 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-semibold text-xs transition flex items-center gap-2 shadow-lg shadow-emerald-500/20 cursor-pointer"
+        >
+          <Save className="w-4 h-4" />
+          <span>Save Preferences</span>
+        </button>
+      </div>
+
+      {/* DANGER SPACE: Permanently Delete Account */}
+      <div className="p-6 rounded-2xl bg-rose-950/20 border-2 border-rose-900/50 space-y-4">
+        <div className="flex items-center gap-2 text-rose-400 font-bold text-sm">
+          <ShieldAlert className="w-5 h-5 text-rose-500" />
+          <span>Danger Space: Permanent Account Deletion</span>
+        </div>
+
+        <p className="text-xs text-zinc-400 leading-relaxed">
+          Permanently delete your account, active temporary numbers, order history, and wallet ledger
+          balances. Once confirmed, this action cannot be reversed and your data is permanently removed.
+        </p>
+
+        {!isDeleteConfirmOpen ? (
+          <button
+            type="button"
+            onClick={() => setIsDeleteConfirmOpen(true)}
+            className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs transition flex items-center gap-2 shadow-lg shadow-rose-600/20 cursor-pointer"
+          >
+            <Trash2 className="w-4 h-4" />
+            <span>Delete Account Permanently</span>
+          </button>
+        ) : (
+          <div className="p-4 rounded-xl bg-zinc-950 border border-rose-800/60 space-y-3 animate-in fade-in duration-200">
+            <div className="flex items-start gap-2.5 text-xs text-rose-300">
+              <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold block">Are you absolutely certain?</span>
+                <span className="text-[11px] text-zinc-400">
+                  Please type <code className="text-rose-400 font-mono font-bold">CONFIRM</code> below to confirm permanent deletion.
+                </span>
+              </div>
+            </div>
+
+            <input
+              type="text"
+              value={confirmInput}
+              onChange={(e) => setConfirmInput(e.target.value)}
+              placeholder="Type CONFIRM to proceed..."
+              className="w-full px-3.5 py-2.5 bg-zinc-900 border border-rose-900/80 rounded-xl text-white font-mono text-xs focus:outline-none focus:border-rose-500"
+              autoFocus
+            />
+
+            <div className="flex items-center gap-3 pt-1">
+              <button
+                type="button"
+                onClick={handleDeleteAccount}
+                disabled={confirmInput.trim().toUpperCase() !== 'CONFIRM' || isDeleting}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-40 text-white font-bold text-xs transition flex items-center gap-1.5 cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>{isDeleting ? 'Deleting Everything...' : 'Yes, Permanently Delete'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsDeleteConfirmOpen(false);
+                  setConfirmInput('');
+                }}
+                className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-semibold transition cursor-pointer"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
