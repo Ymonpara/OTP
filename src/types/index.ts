@@ -147,11 +147,18 @@ export interface SupportTicketReply {
   createdAt: string;
 }
 
+export type TicketCategory =
+  | 'Wallet & Recharge'
+  | 'OTP Delivery'
+  | 'Order Refund'
+  | 'API Integration'
+  | 'Other';
+
 export interface SupportTicket {
   id: string;
   userId: string;
   subject: string;
-  category: 'Wallet & Recharge' | 'OTP Delivery' | 'Order Refund' | 'API Integration' | 'Other';
+  category: TicketCategory;
   message: string;
   status: 'open' | 'in_progress' | 'resolved';
   priority: 'low' | 'medium' | 'high';

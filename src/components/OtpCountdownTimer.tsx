@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Clock, AlertTriangle } from 'lucide-react';
 
 interface OtpCountdownTimerProps {
@@ -14,18 +14,19 @@ export const OtpCountdownTimer: React.FC<OtpCountdownTimerProps> = ({
   onExpire,
   className = '',
 }) => {
-  const [secondsRemaining, setSecondsRemaining] = useState<number>(300);
+  const calculateRemaining = useCallback(() => {
+    const target = new Date(expiresAt).getTime();
+    const now = Date.now();
+    return Math.max(0, Math.floor((target - now) / 1000));
+  }, [expiresAt]);
+
+  const [secondsRemaining, setSecondsRemaining] = useState<number>(() => {
+    const target = new Date(expiresAt).getTime();
+    const now = Date.now();
+    return isNaN(target) ? 300 : Math.max(0, Math.floor((target - now) / 1000));
+  });
 
   useEffect(() => {
-    const calculateRemaining = () => {
-      const target = new Date(expiresAt).getTime();
-      const now = Date.now();
-      const diff = Math.max(0, Math.floor((target - now) / 1000));
-      return diff;
-    };
-
-    setSecondsRemaining(calculateRemaining());
-
     const interval = setInterval(() => {
       const remaining = calculateRemaining();
       setSecondsRemaining(remaining);
@@ -37,7 +38,7 @@ export const OtpCountdownTimer: React.FC<OtpCountdownTimerProps> = ({
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [expiresAt, onExpire]);
+  }, [calculateRemaining, onExpire]);
 
   const minutes = Math.floor(secondsRemaining / 60);
   const seconds = secondsRemaining % 60;

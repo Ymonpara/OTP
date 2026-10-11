@@ -1,0 +1,13 @@
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+export const config = {
+  port: parseInt(process.env.PORT || '5000', 10),
+  nodeEnv: process.env.NODE_ENV || 'development',
+  jwtSecret: process.env.JWT_SECRET || 'super-secret-otp-jwt-key-2026-production',
+  jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
+  corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+  superadminMasterKey: process.env.SUPERADMIN_MASTER_KEY || 'SUPERADMIN_2026',
+  databaseUrl: process.env.DATABASE_URL || '',
+};

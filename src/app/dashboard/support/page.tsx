@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { usePlatform } from '@/context/PlatformContext';
+import { TicketCategory } from '@/types';
 import {
   LifeBuoy,
   Plus,
@@ -24,7 +25,7 @@ export default function SupportPage() {
 
   // Form states
   const [subject, setSubject] = useState('');
-  const [category, setCategory] = useState<'Wallet & Recharge' | 'OTP Delivery' | 'Order Refund' | 'API Integration' | 'Other'>('OTP Delivery');
+  const [category, setCategory] = useState<TicketCategory>('OTP Delivery');
   const [message, setMessage] = useState('');
 
   const activeTicket = tickets.find((t) => t.id === selectedTicketId) || tickets[0];
@@ -239,7 +240,7 @@ export default function SupportPage() {
                 <label className="block text-zinc-400 mb-1">Category</label>
                 <select
                   value={category}
-                  onChange={(e) => setCategory(e.target.value as any)}
+                  onChange={(e) => setCategory(e.target.value as TicketCategory)}
                   className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-xl text-zinc-100"
                 >
                   <option value="OTP Delivery">OTP Delivery & Reception</option>

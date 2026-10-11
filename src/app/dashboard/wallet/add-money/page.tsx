@@ -17,7 +17,7 @@ import {
 import confetti from 'canvas-confetti';
 
 export default function AddMoneyPage() {
-  const { rechargeWallet, wallet } = usePlatform();
+  const { rechargeWallet, wallet, isLoaded } = usePlatform();
   const [amount, setAmount] = useState<number>(500);
   const [customAmount, setCustomAmount] = useState<string>('');
   const [method, setMethod] = useState<'upi' | 'razorpay' | 'cashfree'>('upi');
@@ -230,13 +230,21 @@ export default function AddMoneyPage() {
                 <div className="flex justify-between py-1">
                   <span className="text-zinc-400">Current Balance:</span>
                   <span className="font-mono text-zinc-300">
-                    ₹{wallet.availableBalance.toFixed(2)}
+                    {!isLoaded ? (
+                      <span className="inline-block w-14 h-3.5 bg-zinc-800 animate-pulse rounded my-0.5" />
+                    ) : (
+                      `₹${wallet.availableBalance.toFixed(2)}`
+                    )}
                   </span>
                 </div>
                 <div className="flex justify-between py-1 font-bold text-white pt-2 border-t border-zinc-800">
                   <span>Balance After Recharge:</span>
                   <span className="font-mono text-emerald-400">
-                    ₹{(wallet.availableBalance + amount).toFixed(2)}
+                    {!isLoaded ? (
+                      <span className="inline-block w-14 h-3.5 bg-zinc-800 animate-pulse rounded my-0.5" />
+                    ) : (
+                      `₹${(wallet.availableBalance + amount).toFixed(2)}`
+                    )}
                   </span>
                 </div>
               </div>

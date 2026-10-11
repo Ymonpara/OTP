@@ -33,6 +33,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     wallet,
     activeOrder,
     logout,
+    isLoaded,
   } = usePlatform();
 
   const [isRechargeOpen, setIsRechargeOpen] = useState(false);
@@ -110,7 +111,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   };
 
   // Reusable Left Sidebar Content
-  const SidebarContent = () => (
+  const sidebarContent = (
     <div className="flex flex-col h-full bg-zinc-950 text-zinc-100 select-none">
       {/* 1. Sidebar Brand Header */}
       <div className="p-5 border-b border-zinc-800/80 flex items-center justify-between">
@@ -155,13 +156,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
 
         <div className="flex items-baseline justify-between">
-          <span className="text-xl font-extrabold text-white font-mono tracking-tight">
-            ₹{wallet.availableBalance.toFixed(2)}
-          </span>
-          {wallet.heldBalance > 0 && (
-            <span className="text-[11px] font-mono text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
-              ₹{wallet.heldBalance.toFixed(2)} held
-            </span>
+          {!isLoaded ? (
+            <div className="h-6 w-24 bg-zinc-800 animate-pulse rounded my-0.5" />
+          ) : (
+            <>
+              <span className="text-xl font-extrabold text-white font-mono tracking-tight">
+                ₹{wallet.availableBalance.toFixed(2)}
+              </span>
+              {wallet.heldBalance > 0 && (
+                <span className="text-[11px] font-mono text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                  ₹{wallet.heldBalance.toFixed(2)} held
+                </span>
+              )}
+            </>
           )}
         </div>
 
@@ -312,7 +319,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* DESKTOP FIXED LEFT SIDEBAR */}
       {/* ========================================================================= */}
       <aside className="hidden lg:flex w-64 h-screen sticky top-0 flex-col shrink-0 border-r border-zinc-800/80 z-40 bg-zinc-950">
-        <SidebarContent />
+        {sidebarContent}
       </aside>
 
       {/* ========================================================================= */}
@@ -328,7 +335,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
           {/* Drawer Panel with hardware-accelerated slide-in-from-left */}
           <div className="relative w-72 max-w-[85vw] h-full z-10 shadow-2xl flex flex-col animate-slide-in-left">
-            <SidebarContent />
+            {sidebarContent}
           </div>
         </div>
       )}
@@ -390,7 +397,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <div className="flex flex-col text-left">
                   <span className="text-[9px] sm:text-[10px] text-zinc-400 leading-none">Available</span>
                   <span className="font-bold text-zinc-100 font-mono text-xs">
-                    ₹{wallet.availableBalance.toFixed(2)}
+                    {!isLoaded ? (
+                      <span className="inline-block w-12 h-3 bg-zinc-800 animate-pulse rounded my-0.5" />
+                    ) : (
+                      `₹${wallet.availableBalance.toFixed(2)}`
+                    )}
                   </span>
                 </div>
               </Link>

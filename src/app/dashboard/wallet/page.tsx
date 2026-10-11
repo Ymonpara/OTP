@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 
 export default function WalletPage() {
-  const { wallet, transactions } = usePlatform();
+  const { wallet, transactions, isLoaded } = usePlatform();
   const [isRechargeOpen, setIsRechargeOpen] = useState(false);
 
   const totalCredits = transactions
@@ -70,7 +70,11 @@ export default function WalletPage() {
             </div>
           </div>
           <div className="text-3xl font-extrabold text-white font-mono tracking-tight">
-            ₹{wallet.availableBalance.toFixed(2)}
+            {!isLoaded ? (
+              <div className="h-9 w-32 bg-zinc-800 animate-pulse rounded my-1" />
+            ) : (
+              `₹${wallet.availableBalance.toFixed(2)}`
+            )}
           </div>
           <p className="text-[11px] text-zinc-500 mt-2">
             Usable for immediate virtual number reservations
@@ -85,7 +89,11 @@ export default function WalletPage() {
             </div>
           </div>
           <div className="text-3xl font-extrabold text-amber-400 font-mono tracking-tight">
-            ₹{wallet.heldBalance.toFixed(2)}
+            {!isLoaded ? (
+              <div className="h-9 w-24 bg-zinc-800 animate-pulse rounded my-1" />
+            ) : (
+              `₹${wallet.heldBalance.toFixed(2)}`
+            )}
           </div>
           <p className="text-[11px] text-zinc-500 mt-2">
             Locked during active 5-min timer. Released if no SMS.
@@ -100,7 +108,11 @@ export default function WalletPage() {
             </div>
           </div>
           <div className="text-3xl font-extrabold text-zinc-100 font-mono tracking-tight">
-            ₹{totalDebits.toFixed(2)}
+            {!isLoaded ? (
+              <div className="h-9 w-28 bg-zinc-800 animate-pulse rounded my-1" />
+            ) : (
+              `₹${totalDebits.toFixed(2)}`
+            )}
           </div>
           <p className="text-[11px] text-zinc-500 mt-2">
             Total verified OTP purchases settled

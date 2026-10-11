@@ -30,6 +30,7 @@ export const Navbar: React.FC = () => {
     wallet,
     openAuthModal,
     logout,
+    isLoaded,
   } = usePlatform();
 
   const [isRechargeOpen, setIsRechargeOpen] = useState(false);
@@ -105,10 +106,14 @@ export const Navbar: React.FC = () => {
                     <div className="flex flex-col text-left">
                       <span className="text-[10px] text-zinc-500 leading-none">Available</span>
                       <span className="font-bold text-zinc-100 font-mono">
-                        ₹{wallet.availableBalance.toFixed(2)}
+                        {!isLoaded ? (
+                          <span className="inline-block w-12 h-3.5 bg-zinc-800 animate-pulse rounded my-0.5" />
+                        ) : (
+                          `₹${wallet.availableBalance.toFixed(2)}`
+                        )}
                       </span>
                     </div>
-                    {wallet.heldBalance > 0 && (
+                    {isLoaded && wallet.heldBalance > 0 && (
                       <div className="hidden sm:flex flex-col text-left pl-2 border-l border-zinc-800">
                         <span className="text-[10px] text-amber-500 leading-none">Held</span>
                         <span className="font-medium text-amber-400 font-mono text-[11px]">

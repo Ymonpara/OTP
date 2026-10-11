@@ -11,6 +11,7 @@ import {
   OtpOrder,
   SupportTicket,
   UserRole,
+  TicketCategory,
 } from '@/types';
 import {
   INITIAL_ALL_USERS,
@@ -28,6 +29,9 @@ import {
 export const SUPERADMIN_MASTER_KEY = 'SUPERADMIN_2026';
 
 interface PlatformContextType {
+  // Loading & Hydration Cache State
+  isLoaded: boolean;
+
   // Current session & auth
   currentUser: User;
   isLoggedIn: boolean;
@@ -77,7 +81,7 @@ interface PlatformContextType {
 
   // Support
   tickets: SupportTicket[];
-  createTicket: (subject: string, category: any, message: string) => void;
+  createTicket: (subject: string, category: TicketCategory, message: string) => void;
   replyTicket: (ticketId: string, message: string) => void;
 
   // Audio / notification helper
@@ -125,72 +129,99 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [tickets, setTickets] = useState<SupportTicket[]>(INITIAL_TICKETS);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // Load from localStorage on mount
-  useEffect(() => {
+  // Cache Helpers for instant localStorage and cookie sync
+  const readCache = (key: string): string | null => {
     try {
-      const savedWallet = localStorage.getItem('otp_wallet');
-      if (savedWallet) setWallet(JSON.parse(savedWallet));
+      const local = localStorage.getItem(key);
+      if (local) return local;
+    } catch {}
+    try {
+      const match = typeof document !== 'undefined' ? document.cookie.match(new RegExp('(^|;\\s*)' + key + '=([^;]+)')) : null;
+      if (match) return decodeURIComponent(match[2]);
+    } catch {}
+    return null;
+  };
 
-      const savedTxns = localStorage.getItem('otp_txns');
-      if (savedTxns) setTransactions(JSON.parse(savedTxns));
-
-      const savedOrders = localStorage.getItem('otp_orders');
-      if (savedOrders) {
-        const parsedOrders: OtpOrder[] = JSON.parse(savedOrders);
-        setOrders(parsedOrders);
-        // Look for any currently active waiting order
-        const pending = parsedOrders.find(
-          (o) => o.status === 'WAITING_FOR_SMS' || o.status === 'NUMBER_ASSIGNED'
-        );
-        if (pending) setActiveOrder(pending);
+  const writeCache = (key: string, val: string) => {
+    try {
+      localStorage.setItem(key, val);
+    } catch {}
+    try {
+      if (typeof document !== 'undefined') {
+        const expires = new Date(Date.now() + 7 * 864e5).toUTCString();
+        document.cookie = `${key}=${encodeURIComponent(val)}; expires=${expires}; path=/; SameSite=Lax`;
       }
+    } catch {}
+  };
 
-      const savedServices = localStorage.getItem('otp_services');
-      if (savedServices) setServices(JSON.parse(savedServices));
+  // Load from localStorage and cookie cache on mount
+  useEffect(() => {
+    queueMicrotask(() => {
+      try {
+        const savedWallet = readCache('otp_wallet');
+        if (savedWallet) setWallet(JSON.parse(savedWallet));
 
-      const savedProviders = localStorage.getItem('otp_providers');
-      if (savedProviders) setProviders(JSON.parse(savedProviders));
+        const savedTxns = readCache('otp_txns');
+        if (savedTxns) setTransactions(JSON.parse(savedTxns));
 
-      const savedLoggedIn = localStorage.getItem('otp_is_logged_in');
-      if (savedLoggedIn === 'true') {
-        setIsLoggedIn(true);
-        const savedRole = localStorage.getItem('otp_user_role');
-        if (savedRole === 'admin' || savedRole === 'superadmin') {
-          setCurrentUser(INITIAL_ADMIN_USER);
-        } else {
-          const savedUserData = localStorage.getItem('otp_user_data');
-          if (savedUserData) {
-            try {
-              setCurrentUser(JSON.parse(savedUserData));
-            } catch {
+        const savedOrders = readCache('otp_orders');
+        if (savedOrders) {
+          const parsedOrders: OtpOrder[] = JSON.parse(savedOrders);
+          setOrders(parsedOrders);
+          // Look for any currently active waiting order
+          const pending = parsedOrders.find(
+            (o) => o.status === 'WAITING_FOR_SMS' || o.status === 'NUMBER_ASSIGNED'
+          );
+          if (pending) setActiveOrder(pending);
+        }
+
+        const savedServices = readCache('otp_services');
+        if (savedServices) setServices(JSON.parse(savedServices));
+
+        const savedProviders = readCache('otp_providers');
+        if (savedProviders) setProviders(JSON.parse(savedProviders));
+
+        const savedLoggedIn = readCache('otp_is_logged_in');
+        if (savedLoggedIn === 'true') {
+          setIsLoggedIn(true);
+          const savedRole = readCache('otp_user_role');
+          if (savedRole === 'admin' || savedRole === 'superadmin') {
+            setCurrentUser(INITIAL_ADMIN_USER);
+          } else {
+            const savedUserData = readCache('otp_user_data');
+            if (savedUserData) {
+              try {
+                setCurrentUser(JSON.parse(savedUserData));
+              } catch {
+                setCurrentUser(INITIAL_USER);
+              }
+            } else {
               setCurrentUser(INITIAL_USER);
             }
-          } else {
-            setCurrentUser(INITIAL_USER);
           }
+        } else {
+          setIsLoggedIn(false);
+          setCurrentUser(INITIAL_USER);
         }
-      } else {
-        setIsLoggedIn(false);
-        setCurrentUser(INITIAL_USER);
+      } catch (e) {
+        console.error('Failed to load from storage cache', e);
+      } finally {
+        setIsLoaded(true);
       }
-    } catch (e) {
-      console.error('Failed to load from storage', e);
-    } finally {
-      setIsLoaded(true);
-    }
+    });
   }, []);
 
-  // Save to localStorage
+  // Save to persistent cache (localStorage + cookies)
   useEffect(() => {
     if (!isLoaded) return;
     try {
-      localStorage.setItem('otp_wallet', JSON.stringify(wallet));
-      localStorage.setItem('otp_txns', JSON.stringify(transactions));
-      localStorage.setItem('otp_orders', JSON.stringify(orders));
-      localStorage.setItem('otp_services', JSON.stringify(services));
-      localStorage.setItem('otp_providers', JSON.stringify(providers));
+      writeCache('otp_wallet', JSON.stringify(wallet));
+      writeCache('otp_txns', JSON.stringify(transactions));
+      writeCache('otp_orders', JSON.stringify(orders));
+      writeCache('otp_services', JSON.stringify(services));
+      writeCache('otp_providers', JSON.stringify(providers));
     } catch (e) {
-      console.error('Failed to save to storage', e);
+      console.error('Failed to save to storage cache', e);
     }
   }, [wallet, transactions, orders, services, providers, isLoaded]);
 
@@ -633,7 +664,7 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   // Support Tickets
-  const createTicket = (subject: string, category: any, message: string) => {
+  const createTicket = (subject: string, category: TicketCategory, message: string) => {
     const newTicket: SupportTicket = {
       id: `TCK-${Math.floor(1000 + Math.random() * 9000)}`,
       userId: currentUser.id,
@@ -710,6 +741,7 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         createTicket,
         replyTicket,
         playNotificationSound: playChime,
+        isLoaded,
       }}
     >
       {children}

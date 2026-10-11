@@ -197,7 +197,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     return 'Superadmin Console';
   };
 
-  const AdminSidebarContent = () => (
+  const adminSidebarContent = (
     <div className="flex flex-col h-full bg-zinc-950 text-zinc-100 select-none">
       {/* Brand */}
       <div className="p-5 border-b border-purple-900/40 flex items-center justify-between">
@@ -284,7 +284,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     <div className="min-h-screen bg-[#070a12] text-zinc-100 flex">
       {/* Desktop Fixed Left Sidebar */}
       <aside className="hidden lg:flex w-64 h-screen sticky top-0 flex-col shrink-0 border-r border-purple-900/40 z-40 bg-zinc-950">
-        <AdminSidebarContent />
+        {adminSidebarContent}
       </aside>
 
       {/* Mobile Drawer Sidebar */}
@@ -295,7 +295,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             onClick={() => setIsMobileSidebarOpen(false)}
           />
           <div className="relative w-72 max-w-[85vw] h-full z-10 shadow-2xl flex flex-col">
-            <AdminSidebarContent />
+            {adminSidebarContent}
           </div>
         </div>
       )}

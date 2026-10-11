@@ -1,0 +1,214 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum UserRole {
+  customer
+  admin
+  superadmin
+}
+
+enum UserStatus {
+  active
+  blocked
+}
+
+enum WalletTxnType {
+  CREDIT_RECHARGE
+  DEBIT_OTP_PURCHASE
+  HOLD_OTP_PURCHASE
+  RELEASE_HOLD
+  REFUND
+  ADMIN_CREDIT
+  ADMIN_DEBIT
+  BONUS
+  ADJUSTMENT
+}
+
+enum OrderStatus {
+  PENDING
+  WALLET_HOLD
+  PROVIDER_REQUESTED
+  NUMBER_ASSIGNED
+  WAITING_FOR_SMS
+  SMS_RECEIVED
+  COMPLETED
+  CANCEL_REQUESTED
+  CANCELLED
+  EXPIRED
+  FAILED
+  REFUNDED
+}
+
+model User {
+  id               String          @id @default(uuid())
+  name             String
+  email            String          @unique
+  phone            String?
+  passwordHash     String?
+  role             UserRole        @default(customer)
+  status           UserStatus      @default(active)
+  emailVerified    Boolean         @default(false)
+  twoFactorEnabled Boolean         @default(false)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  wallet           Wallet?
+  transactions     WalletTransaction[]
+  orders           OtpOrder[]
+  tickets          SupportTicket[]
+
+  @@map("users")
+}
+
+model Wallet {
+  id               String          @id @default(uuid())
+  userId           String          @unique
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  availableBalance Float           @default(0.0)
+  heldBalance      Float           @default(0.0)
+  currency         String          @default("INR")
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  transactions     WalletTransaction[]
+
+  @@map("wallets")
+}
+
+model WalletTransaction {
+  id            String        @id @default(uuid())
+  walletId      String
+  wallet        Wallet        @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type          WalletTxnType
+  amount        Float
+  balanceBefore Float
+  balanceAfter  Float
+  holdBefore    Float
+  holdAfter     Float
+  referenceType String
+  referenceId   String
+  description   String
+  status        String        @default("COMPLETED")
+  createdAt     DateTime      @default(now())
+
+  @@map("wallet_transactions")
+}
+
+model Service {
+  id                   String     @id @default(uuid())
+  name                 String
+  slug                 String     @unique
+  serviceCode          String
+  category             String
+  countryCode          String
+  sellingPrice         Float
+  minimumMargin        Float
+  maximumProviderCost  Float
+  providerCostEstimate Float
+  enabled              Boolean    @default(true)
+  successRate          Float      @default(95.0)
+  avgSpeedSeconds      Int        @default(15)
+  iconName             String     @default("default")
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
+  orders               OtpOrder[]
+
+  @@map("services")
+}
+
+model SmsProvider {
+  id                   String     @id @default(uuid())
+  name                 String
+  code                 String     @unique
+  enabled              Boolean    @default(true)
+  priority             Int        @default(1)
+  balance              Float      @default(0.0)
+  currency             String     @default("RUB")
+  minBalanceAlert      Float      @default(500.0)
+  apiHealth            String     @default("operational")
+  pingMs               Int        @default(45)
+  successRate          Float      @default(96.0)
+  totalNumbersAssigned Int        @default(0)
+  lastCheckedAt        DateTime   @default(now())
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
+  orders               OtpOrder[]
+
+  @@map("sms_providers")
+}
+
+model OtpOrder {
+  id                String       @id @default(uuid())
+  userId            String
+  user              User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  serviceId         String
+  service           Service      @relation(fields: [serviceId], references: [id])
+  serviceName       String
+  serviceIcon       String
+  countryCode       String
+  countryName       String
+  countryFlag       String
+  providerId        String
+  provider          SmsProvider  @relation(fields: [providerId], references: [id])
+  providerName      String
+  providerOrderId   String
+  phoneNumber       String
+  sellingPrice      Float
+  providerCost      Float
+  grossMargin       Float
+  currency          String       @default("INR")
+  status            OrderStatus  @default(WAITING_FOR_SMS)
+  orderedAt         DateTime     @default(now())
+  websiteExpiresAt  DateTime
+  completedAt       DateTime?
+  cancelledAt       DateTime?
+  smsReceived       ReceivedSms?
+
+  @@map("otp_orders")
+}
+
+model ReceivedSms {
+  id          String   @id @default(uuid())
+  orderId     String   @unique
+  order       OtpOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  sender      String
+  message     String
+  otpCode     String
+  receivedAt  DateTime @default(now())
+
+  @@map("received_sms")
+}
+
+model SupportTicket {
+  id        String                 @id @default(uuid())
+  userId    String
+  user      User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject   String
+  category  String
+  message   String
+  status    String                 @default("open")
+  priority  String                 @default("medium")
+  createdAt DateTime               @default(now())
+  updatedAt DateTime               @updatedAt
+  replies   SupportTicketReply[]
+
+  @@map("support_tickets")
+}
+
+model SupportTicketReply {
+  id        String        @id @default(uuid())
+  ticketId  String
+  ticket    SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  sender    String
+  senderName String
+  message   String
+  createdAt DateTime      @default(now())
+
+  @@map("support_ticket_replies")
+}

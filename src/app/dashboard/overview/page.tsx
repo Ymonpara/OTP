@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 
 export default function OverviewPage() {
-  const { currentUser, wallet, orders, transactions, activeOrder, providers } = usePlatform();
+  const { currentUser, wallet, orders, transactions, activeOrder, providers, isLoaded } = usePlatform();
   const [isRechargeOpen, setIsRechargeOpen] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -77,7 +77,11 @@ export default function OverviewPage() {
             </div>
           </div>
           <div className="text-2xl font-extrabold text-white font-mono">
-            ₹{wallet.availableBalance.toFixed(2)}
+            {!isLoaded ? (
+              <div className="h-8 w-24 bg-zinc-800 animate-pulse rounded my-1" />
+            ) : (
+              `₹${wallet.availableBalance.toFixed(2)}`
+            )}
           </div>
           <p className="text-[11px] text-zinc-500 mt-1">Ready for number purchase</p>
         </div>
@@ -90,7 +94,11 @@ export default function OverviewPage() {
             </div>
           </div>
           <div className="text-2xl font-extrabold text-amber-400 font-mono">
-            ₹{wallet.heldBalance.toFixed(2)}
+            {!isLoaded ? (
+              <div className="h-8 w-20 bg-zinc-800 animate-pulse rounded my-1" />
+            ) : (
+              `₹${wallet.heldBalance.toFixed(2)}`
+            )}
           </div>
           <p className="text-[11px] text-zinc-500 mt-1">Held during 5-min order timer</p>
         </div>

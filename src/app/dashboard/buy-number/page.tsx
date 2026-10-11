@@ -36,6 +36,7 @@ export default function BuyNumberPage() {
     buyNumber,
     cancelOrder,
     simulateSmsReceived,
+    isLoaded,
   } = usePlatform();
 
   const [selectedCountryCode, setSelectedCountryCode] = useState('IN');
@@ -532,7 +533,11 @@ export default function BuyNumberPage() {
               <div>
                 <span className="text-zinc-500 block text-[10px]">Your Wallet Balance</span>
                 <span className="font-mono font-bold text-zinc-100">
-                  ₹{wallet.availableBalance.toFixed(2)}
+                  {!isLoaded ? (
+                    <span className="inline-block w-14 h-3.5 bg-zinc-800 animate-pulse rounded my-0.5" />
+                  ) : (
+                    `₹${wallet.availableBalance.toFixed(2)}`
+                  )}
                 </span>
               </div>
 
