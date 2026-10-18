@@ -9,7 +9,7 @@ class OtpOrderService {
     /**
      * Create a new OTP Order (Section 17 Developer Plan)
      */
-    createOrder(userId, serviceId, countryCode = 'IN') {
+    async createOrder(userId, serviceId, countryCode = 'IN') {
         const service = memoryStore_js_1.memoryStore.services.get(serviceId);
         if (!service) {
             throw new Error(`Service not found: ${serviceId}`);
@@ -26,8 +26,8 @@ class OtpOrderService {
         const orderId = `ORD-${(0, uuid_1.v4)().slice(0, 8).toUpperCase()}`;
         // 1. Double-Entry Ledger: Place selling price on HOLD
         walletService_js_1.walletService.placeHold(userId, service.sellingPrice, orderId, service.name);
-        // 2. Select best provider and reserve temporary number
-        const purchaseResult = providerService_js_1.providerService.purchaseNumber(service, country.code);
+        // 2. Select best provider and reserve temporary number (Live 5SIM / OnlineSIM or fallback)
+        const purchaseResult = await providerService_js_1.providerService.purchaseNumber(service, country.code);
         // 3. Set 5-minute countdown window
         const now = new Date();
         const expiresAt = new Date(now.getTime() + 5 * 60 * 1000); // 5 minutes
@@ -51,6 +51,7 @@ class OtpOrderService {
             status: 'WAITING_FOR_SMS',
             orderedAt: now.toISOString(),
             websiteExpiresAt: expiresAt.toISOString(),
+            isRealProvider: purchaseResult.isReal,
         };
         memoryStore_js_1.memoryStore.orders.set(order.id, order);
         return order;
@@ -73,7 +74,7 @@ class OtpOrderService {
     /**
      * Cancel in-progress order & release hold back to user (Section 21)
      */
-    cancelOrder(userId, orderId) {
+    async cancelOrder(userId, orderId) {
         const order = this.getOrder(orderId);
         if (order.userId !== userId) {
             throw new Error('Unauthorized to cancel this order');
@@ -81,6 +82,8 @@ class OtpOrderService {
         if (order.status !== 'WAITING_FOR_SMS' && order.status !== 'NUMBER_ASSIGNED') {
             throw new Error(`Cannot cancel order in status: ${order.status}`);
         }
+        // Cancel order on live carrier if applicable
+        await providerService_js_1.providerService.cancelProviderOrder(order);
         // Release held funds back to customer available balance
         walletService_js_1.walletService.releaseHold(userId, order.sellingPrice, order.id, 'User requested order cancellation before SMS');
         order.status = 'CANCELLED';
@@ -104,6 +107,74 @@ class OtpOrderService {
         walletService_js_1.walletService.finalizeDebit(order.userId, order.sellingPrice, order.id, order.serviceName);
         memoryStore_js_1.memoryStore.orders.set(order.id, order);
         return order;
+    }
+    /**
+     * Background Worker: Poll live carrier SMS and expire any that exceed the 5-minute window
+     */
+    async checkAndExpireOrders() {
+        const now = new Date().getTime();
+        let expiredCount = 0;
+        for (const order of memoryStore_js_1.memoryStore.orders.values()) {
+            if (order.status === 'WAITING_FOR_SMS' || order.status === 'NUMBER_ASSIGNED') {
+                // A. If order is using live carrier provider, poll for incoming SMS
+                if (order.isRealProvider) {
+                    try {
+                        const sms = await providerService_js_1.providerService.pollIncomingSms(order);
+                        if (sms) {
+                            order.smsReceived = sms;
+                            order.status = 'COMPLETED';
+                            order.completedAt = new Date().toISOString();
+                            walletService_js_1.walletService.finalizeDebit(order.userId, order.sellingPrice, order.id, order.serviceName);
+                            memoryStore_js_1.memoryStore.orders.set(order.id, order);
+                            console.log(`🎉 [Live Carrier SMS] Order ${order.id} completed! OTP Code: ${sms.otpCode}`);
+                            continue;
+                        }
+                    }
+                    catch (err) {
+                        console.error(`❌ [Carrier Polling Error on ${order.id}]`, err);
+                    }
+                }
+                // B. Check expiration
+                const expiresAt = new Date(order.websiteExpiresAt).getTime();
+                if (now >= expiresAt) {
+                    try {
+                        console.log(`⏱️ [Order Worker] Order ${order.id} expired (5-min timeout reached). Releasing ₹${order.sellingPrice} hold for user ${order.userId}.`);
+                        // Cancel on carrier if real
+                        await providerService_js_1.providerService.cancelProviderOrder(order);
+                        // Release held funds back to customer available balance
+                        walletService_js_1.walletService.releaseHold(order.userId, order.sellingPrice, order.id, 'OTP 5-minute timeout window expired without SMS');
+                        order.status = 'EXPIRED';
+                        order.cancelledAt = new Date().toISOString();
+                        memoryStore_js_1.memoryStore.orders.set(order.id, order);
+                        expiredCount++;
+                    }
+                    catch (err) {
+                        console.error(`❌ [Order Worker] Error expiring order ${order.id}:`, err);
+                    }
+                }
+            }
+        }
+        return expiredCount;
+    }
+    workerTimer = null;
+    /**
+     * Starts periodic worker loop (every 3 seconds)
+     */
+    startBackgroundWorker(intervalMs = 3000) {
+        if (this.workerTimer) {
+            clearInterval(this.workerTimer);
+        }
+        console.log(`🔄 [Order Worker] Background order expiration & SMS carrier polling worker started (interval: ${intervalMs}ms)`);
+        this.workerTimer = setInterval(async () => {
+            await this.checkAndExpireOrders();
+        }, intervalMs);
+    }
+    stopBackgroundWorker() {
+        if (this.workerTimer) {
+            clearInterval(this.workerTimer);
+            this.workerTimer = null;
+            console.log(`⏹️ [Order Worker] Background worker stopped.`);
+        }
     }
     /**
      * Admin Manual Refund

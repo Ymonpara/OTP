@@ -137,7 +137,9 @@ export interface OtpOrder {
   completedAt?: string;
   cancelledAt?: string;
   smsReceived?: ReceivedSms;
+  isRealProvider?: boolean;
 }
+
 
 export interface SupportTicketReply {
   id: string;

@@ -19,11 +19,11 @@ const simulateSmsSchema = z.object({
 otpRouter.use(authenticate);
 
 // 1. Create OTP Order (Get Virtual Number)
-otpRouter.post('/orders', validate(createOrderSchema), (req: AuthenticatedRequest, res: Response, next) => {
+otpRouter.post('/orders', validate(createOrderSchema), async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     const userId = req.user!.id;
     const { serviceId, countryCode } = req.body;
-    const order = otpOrderService.createOrder(userId, serviceId, countryCode);
+    const order = await otpOrderService.createOrder(userId, serviceId, countryCode);
 
     res.status(201).json({
       success: true,
@@ -77,10 +77,10 @@ otpRouter.get('/orders/:id', (req: AuthenticatedRequest, res: Response, next) =>
 });
 
 // 5. Cancel Order and Release Held Funds
-otpRouter.post('/orders/:id/cancel', (req: AuthenticatedRequest, res: Response, next) => {
+otpRouter.post('/orders/:id/cancel', async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     const userId = req.user!.id;
-    const order = otpOrderService.cancelOrder(userId, req.params.id as string);
+    const order = await otpOrderService.cancelOrder(userId, req.params.id as string);
     res.json({
       success: true,
       message: 'Order cancelled successfully and held funds released back to available balance.',
@@ -90,6 +90,7 @@ otpRouter.post('/orders/:id/cancel', (req: AuthenticatedRequest, res: Response, 
     next(error);
   }
 });
+
 
 // 6. Simulate Incoming SMS Delivery (Testing Hook)
 otpRouter.post('/orders/:id/simulate-sms', validate(simulateSmsSchema), (req: AuthenticatedRequest, res: Response, next) => {

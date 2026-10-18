@@ -8,11 +8,11 @@ export class OtpOrderService {
   /**
    * Create a new OTP Order (Section 17 Developer Plan)
    */
-  public createOrder(
+  public async createOrder(
     userId: string,
     serviceId: string,
     countryCode: string = 'IN'
-  ): OtpOrder {
+  ): Promise<OtpOrder> {
     const service = memoryStore.services.get(serviceId);
     if (!service) {
       throw new Error(`Service not found: ${serviceId}`);
@@ -34,8 +34,8 @@ export class OtpOrderService {
     // 1. Double-Entry Ledger: Place selling price on HOLD
     walletService.placeHold(userId, service.sellingPrice, orderId, service.name);
 
-    // 2. Select best provider and reserve temporary number
-    const purchaseResult = providerService.purchaseNumber(service, country.code);
+    // 2. Select best provider and reserve temporary number (Live 5SIM / OnlineSIM or fallback)
+    const purchaseResult = await providerService.purchaseNumber(service, country.code);
 
     // 3. Set 5-minute countdown window
     const now = new Date();
@@ -61,6 +61,7 @@ export class OtpOrderService {
       status: 'WAITING_FOR_SMS',
       orderedAt: now.toISOString(),
       websiteExpiresAt: expiresAt.toISOString(),
+      isRealProvider: purchaseResult.isReal,
     };
 
     memoryStore.orders.set(order.id, order);
@@ -90,7 +91,7 @@ export class OtpOrderService {
   /**
    * Cancel in-progress order & release hold back to user (Section 21)
    */
-  public cancelOrder(userId: string, orderId: string): OtpOrder {
+  public async cancelOrder(userId: string, orderId: string): Promise<OtpOrder> {
     const order = this.getOrder(orderId);
 
     if (order.userId !== userId) {
@@ -100,6 +101,9 @@ export class OtpOrderService {
     if (order.status !== 'WAITING_FOR_SMS' && order.status !== 'NUMBER_ASSIGNED') {
       throw new Error(`Cannot cancel order in status: ${order.status}`);
     }
+
+    // Cancel order on live carrier if applicable
+    await providerService.cancelProviderOrder(order);
 
     // Release held funds back to customer available balance
     walletService.releaseHold(
@@ -136,6 +140,90 @@ export class OtpOrderService {
 
     memoryStore.orders.set(order.id, order);
     return order;
+  }
+
+  /**
+   * Background Worker: Poll live carrier SMS and expire any that exceed the 5-minute window
+   */
+  public async checkAndExpireOrders(): Promise<number> {
+    const now = new Date().getTime();
+    let expiredCount = 0;
+
+    for (const order of memoryStore.orders.values()) {
+      if (order.status === 'WAITING_FOR_SMS' || order.status === 'NUMBER_ASSIGNED') {
+        // A. If order is using live carrier provider, poll for incoming SMS
+        if (order.isRealProvider) {
+          try {
+            const sms = await providerService.pollIncomingSms(order);
+            if (sms) {
+              order.smsReceived = sms;
+              order.status = 'COMPLETED';
+              order.completedAt = new Date().toISOString();
+              walletService.finalizeDebit(order.userId, order.sellingPrice, order.id, order.serviceName);
+              memoryStore.orders.set(order.id, order);
+              console.log(`🎉 [Live Carrier SMS] Order ${order.id} completed! OTP Code: ${sms.otpCode}`);
+              continue;
+            }
+          } catch (err) {
+            console.error(`❌ [Carrier Polling Error on ${order.id}]`, err);
+          }
+        }
+
+        // B. Check expiration
+        const expiresAt = new Date(order.websiteExpiresAt).getTime();
+        if (now >= expiresAt) {
+          try {
+            console.log(
+              `⏱️ [Order Worker] Order ${order.id} expired (5-min timeout reached). Releasing ₹${order.sellingPrice} hold for user ${order.userId}.`
+            );
+            // Cancel on carrier if real
+            await providerService.cancelProviderOrder(order);
+
+            // Release held funds back to customer available balance
+            walletService.releaseHold(
+              order.userId,
+              order.sellingPrice,
+              order.id,
+              'OTP 5-minute timeout window expired without SMS'
+            );
+
+            order.status = 'EXPIRED';
+            order.cancelledAt = new Date().toISOString();
+            memoryStore.orders.set(order.id, order);
+            expiredCount++;
+          } catch (err) {
+            console.error(`❌ [Order Worker] Error expiring order ${order.id}:`, err);
+          }
+        }
+      }
+    }
+
+    return expiredCount;
+  }
+
+  private workerTimer: NodeJS.Timeout | null = null;
+
+  /**
+   * Starts periodic worker loop (every 3 seconds)
+   */
+  public startBackgroundWorker(intervalMs: number = 3000): void {
+    if (this.workerTimer) {
+      clearInterval(this.workerTimer);
+    }
+    console.log(
+      `🔄 [Order Worker] Background order expiration & SMS carrier polling worker started (interval: ${intervalMs}ms)`
+    );
+    this.workerTimer = setInterval(async () => {
+      await this.checkAndExpireOrders();
+    }, intervalMs);
+  }
+
+  public stopBackgroundWorker(): void {
+    if (this.workerTimer) {
+      clearInterval(this.workerTimer);
+      this.workerTimer = null;
+      console.log(`⏹️ [Order Worker] Background worker stopped.`);
+    }
   }
 
   /**

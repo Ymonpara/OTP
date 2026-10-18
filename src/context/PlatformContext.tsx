@@ -25,6 +25,8 @@ import {
   INITIAL_ADMIN_USER,
   INITIAL_WALLET,
 } from '@/lib/mockData';
+import { api, getStoredToken, setStoredToken, removeStoredToken } from '@/lib/api';
+
 
 export const SUPERADMIN_MASTER_KEY = 'SUPERADMIN_2026';
 
@@ -68,7 +70,8 @@ interface PlatformContextType {
   updateService: (serviceId: string, updates: Partial<ServiceItem>) => void;
   toggleServiceStatus: (serviceId: string) => void;
   updateProvider: (providerId: string, updates: Partial<SmsProvider>) => void;
-  syncProviderBalance: (providerId: string) => void;
+  syncProviderBalance: (providerId: string) => Promise<void>;
+  syncAllProviders: () => Promise<void>;
 
   // Orders
   orders: OtpOrder[];
@@ -225,6 +228,102 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   }, [wallet, transactions, orders, services, providers, isLoaded]);
 
+  // Synchronize with backend API on mount
+  useEffect(() => {
+    if (!isLoaded) return;
+    let isMounted = true;
+
+    const syncBackendData = async () => {
+      try {
+        const health = await api.healthCheck();
+        if (!health.success) return;
+
+        // Fetch services & providers from backend
+        const [srvRes, provRes] = await Promise.all([
+          api.services.getAll(),
+          api.services.getProviders(),
+        ]);
+
+        if (isMounted && srvRes.success && srvRes.data?.services?.length) {
+          setServices(srvRes.data.services);
+        }
+        if (isMounted && provRes.success && provRes.data?.providers?.length) {
+          setProviders(provRes.data.providers);
+        }
+
+        const token = getStoredToken();
+        if (token) {
+          const meRes = await api.auth.getMe();
+          if (isMounted && meRes.success && meRes.data?.user) {
+            setCurrentUser(meRes.data.user);
+            setIsLoggedIn(true);
+
+            const [walRes, txnRes, actRes, ordRes] = await Promise.all([
+              api.wallet.getBalance(),
+              api.wallet.getTransactions(),
+              api.otp.getActiveOrder(),
+              api.otp.getUserOrders(),
+            ]);
+
+            if (isMounted && walRes.success && walRes.data?.wallet) {
+              setWallet(walRes.data.wallet);
+            }
+            if (isMounted && txnRes.success && txnRes.data?.transactions) {
+              setTransactions(txnRes.data.transactions);
+            }
+            if (isMounted && actRes.success) {
+              setActiveOrder(actRes.data?.activeOrder || null);
+            }
+            if (isMounted && ordRes.success && ordRes.data?.orders) {
+              setOrders(ordRes.data.orders);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Initial backend sync skipped:', e);
+      }
+    };
+
+    syncBackendData();
+    return () => {
+      isMounted = false;
+    };
+  }, [isLoaded]);
+
+  // Periodic polling sync while an OTP order is waiting for SMS
+  useEffect(() => {
+    if (!activeOrder || (activeOrder.status !== 'WAITING_FOR_SMS' && activeOrder.status !== 'NUMBER_ASSIGNED')) {
+      return;
+    }
+
+    const interval = setInterval(async () => {
+      try {
+        const actRes = await api.otp.getActiveOrder();
+        if (actRes.success) {
+          const current = actRes.data?.activeOrder;
+          if (!current || current.status !== activeOrder.status || current.smsReceived) {
+            setActiveOrder(current || null);
+            // Refresh wallet if order completed or expired
+            const [walRes, txnRes, ordRes] = await Promise.all([
+              api.wallet.getBalance(),
+              api.wallet.getTransactions(),
+              api.otp.getUserOrders(),
+            ]);
+            if (walRes.success && walRes.data?.wallet) setWallet(walRes.data.wallet);
+            if (txnRes.success && txnRes.data?.transactions) setTransactions(txnRes.data.transactions);
+            if (ordRes.success && ordRes.data?.orders) setOrders(ordRes.data.orders);
+
+            if (current?.smsReceived && !activeOrder.smsReceived) {
+              playChime();
+            }
+          }
+        }
+      } catch {}
+    }, 2500);
+
+    return () => clearInterval(interval);
+  }, [activeOrder]);
+
   // Auth modal management
   const openAuthModal = (tab: 'login' | 'signup' | 'admin' = 'login') => {
     setAuthModalTab(tab);
@@ -249,6 +348,23 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     localStorage.setItem('otp_user_role', 'customer');
     localStorage.setItem('otp_user_data', JSON.stringify(dummy));
     playChime();
+
+    // Sync with backend auth in background
+    api.auth.loginAsDemoCustomer().then(async (res) => {
+      if (res.success && res.data?.user) {
+        setCurrentUser(res.data.user);
+        const [walRes, txnRes, actRes, ordRes] = await Promise.all([
+          api.wallet.getBalance(),
+          api.wallet.getTransactions(),
+          api.otp.getActiveOrder(),
+          api.otp.getUserOrders(),
+        ]);
+        if (walRes.success && walRes.data?.wallet) setWallet(walRes.data.wallet);
+        if (txnRes.success && txnRes.data?.transactions) setTransactions(txnRes.data.transactions);
+        if (actRes.success) setActiveOrder(actRes.data?.activeOrder || null);
+        if (ordRes.success && ordRes.data?.orders) setOrders(ordRes.data.orders);
+      }
+    }).catch(() => {});
   };
 
   // Login with Superadmin Key
@@ -260,6 +376,19 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       localStorage.setItem('otp_is_logged_in', 'true');
       localStorage.setItem('otp_user_role', 'admin');
       playChime();
+
+      // Async backend sync for admin session
+      api.auth.loginWithAdminKey(cleanKey).then(async (res) => {
+        if (res.success && res.data?.user) {
+          const [walRes, usersRes] = await Promise.all([
+            api.wallet.getBalance(),
+            api.admin.getUsers(),
+          ]);
+          if (walRes.success && walRes.data?.wallet) setWallet(walRes.data.wallet);
+          if (usersRes.success && usersRes.data?.users) setAllUsers(usersRes.data.users);
+        }
+      }).catch(() => {});
+
       return { success: true };
     }
     return {
@@ -270,6 +399,7 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   // Logout
   const logout = () => {
+    api.auth.logout();
     setIsLoggedIn(false);
     setCurrentUser(INITIAL_USER);
     localStorage.removeItem('otp_is_logged_in');
@@ -299,10 +429,30 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         u.id === userId ? { ...u, status: u.status === 'active' ? 'blocked' : 'active' } : u
       )
     );
+    api.admin.toggleUser(userId).catch(() => {});
   };
 
   // Add Money (Customer Recharge)
   const rechargeWallet = async (amount: number, method: string) => {
+    try {
+      const res = await api.wallet.createRecharge(amount, method);
+      if (res.success && res.data?.transaction) {
+        // Refresh balance & transactions from backend
+        const [walRes, txnRes] = await Promise.all([
+          api.wallet.getBalance(),
+          api.wallet.getTransactions(),
+        ]);
+        if (walRes.success && walRes.data?.wallet) setWallet(walRes.data.wallet);
+        if (txnRes.success && txnRes.data?.transactions) setTransactions(txnRes.data.transactions);
+
+        playChime();
+        return { success: true, txnId: res.data.transaction.id };
+      }
+    } catch (err) {
+      console.warn('Backend recharge error, using offline ledger fallback:', err);
+    }
+
+    // Offline fallback
     const txnId = `TXN-${Math.floor(100000 + Math.random() * 900000)}`;
     const beforeBal = wallet.availableBalance;
     const afterBal = beforeBal + amount;
@@ -342,6 +492,15 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     amount: number,
     reason: string
   ) => {
+    api.wallet.adminAdjust(userId, type, amount, reason).then((res) => {
+      if (res.success && res.data?.wallet) {
+        setWallet(res.data.wallet);
+        api.wallet.getTransactions().then((t) => {
+          if (t.success && t.data?.transactions) setTransactions(t.data.transactions);
+        });
+      }
+    }).catch(() => {});
+
     const txnId = `ADJ-${Math.floor(100000 + Math.random() * 900000)}`;
     const beforeBal = wallet.availableBalance;
     const afterBal = type === 'ADMIN_CREDIT' ? beforeBal + amount : Math.max(0, beforeBal - amount);
@@ -373,7 +532,32 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   // Buy Number ("Get Number" flow with Hold mechanism)
-  const buyNumber = async (serviceId: string, countryCode: string) => {
+  const buyNumber = async (serviceId: string, countryCode: string, operator?: string) => {
+    try {
+      const res = await api.otp.createOrder(serviceId, countryCode, operator);
+      if (res.success && res.data?.order) {
+        const newOrder = res.data.order;
+        setOrders((prev) => [newOrder, ...prev.filter((o) => o.id !== newOrder.id)]);
+        setActiveOrder(newOrder);
+
+        // Refresh wallet & transactions from backend
+        const [walRes, txnRes] = await Promise.all([
+          api.wallet.getBalance(),
+          api.wallet.getTransactions(),
+        ]);
+        if (walRes.success && walRes.data?.wallet) setWallet(walRes.data.wallet);
+        if (txnRes.success && txnRes.data?.transactions) setTransactions(txnRes.data.transactions);
+
+        playChime();
+        return { success: true, order: newOrder };
+      } else if (res.error) {
+        return { success: false, error: res.error };
+      }
+    } catch (err) {
+      console.warn('Backend buyNumber error, using offline fallback:', err);
+    }
+
+    // Offline fallback logic
     const service = services.find((s) => s.id === serviceId);
     if (!service) return { success: false, error: 'Service not found.' };
 
@@ -387,7 +571,6 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       };
     }
 
-    // Provider selection: choose enabled provider with highest priority and enough margin
     const enabledProviders = providers
       .filter((p) => p.enabled && p.apiHealth !== 'offline')
       .sort((a, b) => a.priority - b.priority);
@@ -396,7 +579,6 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const orderId = `ORD-${Math.floor(10000 + Math.random() * 90000)}`;
     const txnId = `TXN-${Math.floor(100000 + Math.random() * 900000)}`;
 
-    // Generate realistic phone number for the country
     const randomDigits = Math.floor(100000000 + Math.random() * 900000000);
     const phoneNumber = `${country.dialCode} 9${randomDigits.toString().slice(0, 9)}`;
 
@@ -405,7 +587,6 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const beforeHold = wallet.heldBalance;
     const afterHold = beforeHold + cost;
 
-    // 1. Create HOLD transaction
     const holdTxn: WalletTransaction = {
       id: txnId,
       walletId: wallet.id,
@@ -423,7 +604,6 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       createdAt: new Date().toISOString(),
     };
 
-    // 2. Create Order (5-minute website timer)
     const now = new Date();
     const expiresAt = new Date(now.getTime() + 5 * 60 * 1000).toISOString();
 
@@ -449,7 +629,6 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       websiteExpiresAt: expiresAt,
     };
 
-    // Update state
     setWallet((prev) => ({
       ...prev,
       availableBalance: afterBal,
@@ -461,18 +640,37 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setOrders((prev) => [newOrder, ...prev]);
     setActiveOrder(newOrder);
 
-    // Update provider total assigned count
-    setProviders((prev) =>
-      prev.map((p) =>
-        p.id === provider.id ? { ...p, totalNumbersAssigned: p.totalNumbersAssigned + 1 } : p
-      )
-    );
-
     return { success: true, order: newOrder };
   };
 
   // Cancel Order & Release Hold
   const cancelOrder = async (orderId: string) => {
+    try {
+      const res = await api.otp.cancelOrder(orderId);
+      if (res.success && res.data?.order) {
+        const cancelled = res.data.order;
+        setOrders((prev) => prev.map((o) => (o.id === orderId ? cancelled : o)));
+        if (activeOrder?.id === orderId) {
+          setActiveOrder(null);
+        }
+
+        // Refresh wallet & transactions from backend
+        const [walRes, txnRes] = await Promise.all([
+          api.wallet.getBalance(),
+          api.wallet.getTransactions(),
+        ]);
+        if (walRes.success && walRes.data?.wallet) setWallet(walRes.data.wallet);
+        if (txnRes.success && txnRes.data?.transactions) setTransactions(txnRes.data.transactions);
+
+        return { success: true, message: 'Order cancelled successfully. Funds restored to wallet.' };
+      } else if (res.error) {
+        return { success: false, message: res.error };
+      }
+    } catch (err) {
+      console.warn('Backend cancelOrder error, using offline fallback:', err);
+    }
+
+    // Offline fallback
     const order = orders.find((o) => o.id === orderId);
     if (!order) return { success: false, message: 'Order not found.' };
 
@@ -528,6 +726,27 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   // Simulate Incoming SMS (or triggered on timer/button)
   const simulateSmsReceived = (orderId: string, customCode?: string) => {
+    // Fire backend simulation
+    api.otp.simulateSms(orderId, customCode).then(async (res) => {
+      if (res.success && res.data?.order) {
+        const completed = res.data.order;
+        setOrders((prev) => prev.map((o) => (o.id === orderId ? completed : o)));
+        if (activeOrder?.id === orderId) {
+          setActiveOrder(completed);
+        }
+        const [walRes, txnRes] = await Promise.all([
+          api.wallet.getBalance(),
+          api.wallet.getTransactions(),
+        ]);
+        if (walRes.success && walRes.data?.wallet) setWallet(walRes.data.wallet);
+        if (txnRes.success && txnRes.data?.transactions) setTransactions(txnRes.data.transactions);
+
+        playChime();
+        return;
+      }
+    }).catch(() => {});
+
+    // Immediate offline state update
     const order = orders.find((o) => o.id === orderId);
     if (!order || order.status === 'COMPLETED' || order.status === 'CANCELLED') return;
 
@@ -544,7 +763,6 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const beforeHold = wallet.heldBalance;
     const afterHold = Math.max(0, beforeHold - cost);
 
-    // Convert Hold to Final Debit
     const debitTxn: WalletTransaction = {
       id: `TXN-${Math.floor(100000 + Math.random() * 900000)}`,
       walletId: wallet.id,
@@ -584,6 +802,7 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     playChime();
   };
+
 
   // Admin Manual Refund
   const adminRefundOrder = (orderId: string, reason: string) => {
@@ -646,21 +865,46 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     );
   };
 
-  const syncProviderBalance = (providerId: string) => {
+  const syncProviderBalance = async (providerId: string) => {
+    try {
+      const res = await api.services.syncProvider(providerId);
+      if (res.success && res.data?.provider) {
+        const synced = res.data.provider;
+        setProviders((prev) => prev.map((p) => (p.id === providerId ? synced : p)));
+        playChime();
+        return;
+      }
+    } catch (e) {
+      console.warn('Backend provider sync error:', e);
+    }
+
+    // Fallback if offline
     setProviders((prev) =>
       prev.map((p) => {
         if (p.id === providerId) {
-          // fluctuate slightly to simulate real balance sync
-          const delta = (Math.random() - 0.5) * 50;
           return {
             ...p,
-            balance: Math.max(100, Math.round((p.balance + delta) * 100) / 100),
             lastCheckedAt: 'Just now',
           };
         }
         return p;
       })
     );
+    playChime();
+  };
+
+  const syncAllProviders = async () => {
+    try {
+      const res = await api.services.getProviders();
+      if (res.success && res.data?.providers) {
+        setProviders(res.data.providers);
+        playChime();
+        return;
+      }
+    } catch (e) {
+      console.warn('Backend sync all providers error:', e);
+    }
+    playChime();
   };
 
   // Support Tickets
@@ -730,6 +974,8 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         toggleServiceStatus,
         updateProvider,
         syncProviderBalance,
+        syncAllProviders,
+
         orders,
         activeOrder,
         setActiveOrder,

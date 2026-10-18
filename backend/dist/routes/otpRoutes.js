@@ -17,11 +17,11 @@ const simulateSmsSchema = zod_1.z.object({
 });
 exports.otpRouter.use(auth_js_1.authenticate);
 // 1. Create OTP Order (Get Virtual Number)
-exports.otpRouter.post('/orders', (0, validate_js_1.validate)(createOrderSchema), (req, res, next) => {
+exports.otpRouter.post('/orders', (0, validate_js_1.validate)(createOrderSchema), async (req, res, next) => {
     try {
         const userId = req.user.id;
         const { serviceId, countryCode } = req.body;
-        const order = otpOrderService_js_1.otpOrderService.createOrder(userId, serviceId, countryCode);
+        const order = await otpOrderService_js_1.otpOrderService.createOrder(userId, serviceId, countryCode);
         res.status(201).json({
             success: true,
             message: 'Virtual number reserved successfully. 5-minute timer started.',
@@ -69,10 +69,10 @@ exports.otpRouter.get('/orders/:id', (req, res, next) => {
     }
 });
 // 5. Cancel Order and Release Held Funds
-exports.otpRouter.post('/orders/:id/cancel', (req, res, next) => {
+exports.otpRouter.post('/orders/:id/cancel', async (req, res, next) => {
     try {
         const userId = req.user.id;
-        const order = otpOrderService_js_1.otpOrderService.cancelOrder(userId, req.params.id);
+        const order = await otpOrderService_js_1.otpOrderService.cancelOrder(userId, req.params.id);
         res.json({
             success: true,
             message: 'Order cancelled successfully and held funds released back to available balance.',

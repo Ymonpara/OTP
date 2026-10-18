@@ -10,4 +10,10 @@ export const config = {
   corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:3000',
   superadminMasterKey: process.env.SUPERADMIN_MASTER_KEY || 'SUPERADMIN_2026',
   databaseUrl: process.env.DATABASE_URL || '',
+  fiveSimApiKey: process.env.FIVESIM_API_KEY || '',
+  onlineSimApiKey: process.env.ONLINESIM_API_KEY || '',
+  smsManApiKey: process.env.SMSMAN_API_KEY || '',
+  // RUB to INR conversion rate for wholesale provider billing calculation
+  rubToInrRate: parseFloat(process.env.RUB_TO_INR_RATE || '1.10'),
 };
+
