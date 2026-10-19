@@ -179,6 +179,36 @@ export const api = {
       });
     },
 
+    createRazorpayOrder: async (amount: number) => {
+      return request<{
+        orderId: string;
+        amount: number;
+        amountInRupees: number;
+        currency: string;
+        keyId: string;
+        isSandbox: boolean;
+      }>('/wallet/razorpay/create-order', {
+        method: 'POST',
+        body: JSON.stringify({ amount }),
+      });
+    },
+
+    verifyRazorpayPayment: async (
+      orderId: string,
+      paymentId: string,
+      signature: string,
+      amount: number
+    ) => {
+      return request<{
+        wallet: Wallet;
+        transaction: WalletTransaction;
+      }>('/wallet/razorpay/verify-payment', {
+        method: 'POST',
+        body: JSON.stringify({ orderId, paymentId, signature, amount }),
+      });
+    },
+
+
     adminAdjust: async (
       userId: string,
       type: 'ADMIN_CREDIT' | 'ADMIN_DEBIT',
