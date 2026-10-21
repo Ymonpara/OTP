@@ -41,34 +41,16 @@ export class AuthService {
 
     memoryStore.users.set(newUser.id, newUser);
 
-    // Create user wallet with welcome initial balance
+    // Create user wallet with zero starting balance
     const wallet: Wallet = {
       id: `WAL-${uuidv4().slice(0, 8).toUpperCase()}`,
       userId: newUser.id,
-      availableBalance: 100.0,
+      availableBalance: 0.0,
       heldBalance: 0.0,
       currency: 'INR',
       updatedAt: new Date().toISOString(),
     };
     memoryStore.wallets.set(newUser.id, wallet);
-
-    // Initial promotional credit
-    memoryStore.transactions.push({
-      id: `TXN-${uuidv4().slice(0, 8).toUpperCase()}`,
-      walletId: wallet.id,
-      userId: newUser.id,
-      type: 'BONUS',
-      amount: 100.0,
-      balanceBefore: 0.0,
-      balanceAfter: 100.0,
-      holdBefore: 0.0,
-      holdAfter: 0.0,
-      referenceType: 'SIGNUP_PROMO',
-      referenceId: 'WELCOME-BONUS',
-      description: 'New account activation promotional bonus',
-      status: 'COMPLETED',
-      createdAt: new Date().toISOString(),
-    });
 
     const token = this.generateToken(newUser);
     return { user: newUser, token };

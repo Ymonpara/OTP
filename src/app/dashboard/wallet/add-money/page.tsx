@@ -17,7 +17,7 @@ import {
 import confetti from 'canvas-confetti';
 
 export default function AddMoneyPage() {
-  const { rechargeWallet, wallet, isLoaded } = usePlatform();
+  const { rechargeWallet, refreshWallet, wallet, isLoaded } = usePlatform();
   const [amount, setAmount] = useState<number>(500);
   const [customAmount, setCustomAmount] = useState<string>('');
   const [method, setMethod] = useState<'upi' | 'razorpay' | 'cashfree'>('upi');
@@ -90,13 +90,15 @@ export default function AddMoneyPage() {
               response.razorpay_signature || 'mock_sig',
               amount
             );
-            setIsProcessing(false);
             if (verifyRes.success) {
+              await refreshWallet();
+              setIsProcessing(false);
               setSuccessTxn(response.razorpay_payment_id || `TXN-${Date.now()}`);
               confetti({ particleCount: 100, spread: 80, origin: { y: 0.5 } });
             } else {
               // fallback
               const sim = await rechargeWallet(amount, 'razorpay');
+              setIsProcessing(false);
               if (sim.success) {
                 setSuccessTxn(sim.txnId);
                 confetti({ particleCount: 100, spread: 80, origin: { y: 0.5 } });
@@ -106,6 +108,28 @@ export default function AddMoneyPage() {
           modal: {
             ondismiss: () => {
               setIsProcessing(false);
+            },
+          },
+          prefill: {
+            method: 'upi',
+          },
+          config: {
+            display: {
+              blocks: {
+                upi: {
+                  name: 'Scan & Pay via UPI QR Code',
+                  instruments: [
+                    {
+                      method: 'upi',
+                      flows: ['qr'],
+                    },
+                  ],
+                },
+              },
+              sequence: ['block.upi'],
+              preferences: {
+                show_default_blocks: true,
+              },
             },
           },
           theme: {
@@ -140,7 +164,7 @@ export default function AddMoneyPage() {
   const handlePay = async () => {
     if (amount <= 0) return;
 
-    if (method === 'razorpay') {
+    if (method === 'razorpay' || method === 'upi') {
       await handleRazorpayPayment();
       return;
     }

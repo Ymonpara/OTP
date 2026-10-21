@@ -14,69 +14,31 @@ class MemoryStore {
         this.seed();
     }
     seed() {
-        // 1. Seed Demo Customer User
-        const demoCustomer = {
-            id: 'USR-DEMO-001',
-            name: 'Demo Customer',
-            email: 'customer@otpwallet.com',
-            phone: '+91 98765 43210',
-            role: 'customer',
-            status: 'active',
-            emailVerified: true,
-            twoFactorEnabled: false,
-            createdAt: '2026-03-01T10:00:00Z',
-        };
-        this.users.set(demoCustomer.id, demoCustomer);
-        // 2. Seed Demo Admin User
-        const demoAdmin = {
+        // 1. Seed Admin User
+        const adminUser = {
             id: 'USR-ADMIN-001',
-            name: 'Platform Superadmin',
+            name: 'Platform Administrator',
             email: 'admin@otpwallet.com',
             phone: '+91 99999 00000',
             role: 'admin',
             status: 'active',
             emailVerified: true,
             twoFactorEnabled: true,
-            createdAt: '2026-01-01T00:00:00Z',
+            createdAt: new Date().toISOString(),
         };
-        this.users.set(demoAdmin.id, demoAdmin);
-        // 3. Seed Demo Customer Wallet (₹250 available balance, ₹0 held)
-        const customerWallet = {
-            id: 'WAL-DEMO-001',
-            userId: demoCustomer.id,
-            availableBalance: 250.0,
-            heldBalance: 0.0,
-            currency: 'INR',
-            updatedAt: new Date().toISOString(),
-        };
-        this.wallets.set(customerWallet.userId, customerWallet);
-        // 4. Seed Admin Wallet
+        this.users.set(adminUser.id, adminUser);
+        // 2. Seed Admin Wallet with zero starting balance
         const adminWallet = {
             id: 'WAL-ADMIN-001',
-            userId: demoAdmin.id,
-            availableBalance: 10000.0,
+            userId: adminUser.id,
+            availableBalance: 0.0,
             heldBalance: 0.0,
             currency: 'INR',
             updatedAt: new Date().toISOString(),
         };
         this.wallets.set(adminWallet.userId, adminWallet);
-        // 5. Seed Initial Ledger Transactions for Demo Customer
-        this.transactions.push({
-            id: 'TXN-INIT-001',
-            walletId: customerWallet.id,
-            userId: demoCustomer.id,
-            type: 'CREDIT_RECHARGE',
-            amount: 250.0,
-            balanceBefore: 0.0,
-            balanceAfter: 250.0,
-            holdBefore: 0.0,
-            holdAfter: 0.0,
-            referenceType: 'PAYMENT_GATEWAY',
-            referenceId: 'UPI-DEMO-REF-9988',
-            description: 'Initial account signup promotional bonus / UPI recharge',
-            status: 'COMPLETED',
-            createdAt: '2026-03-01T10:05:00Z',
-        });
+        // 3. Transactions initialized as clean empty array
+        this.transactions = [];
         // 6. Seed Countries
         const seedCountries = [
             { code: 'IN', name: 'India', dialCode: '+91', flag: '🇮🇳' },
@@ -221,7 +183,7 @@ class MemoryStore {
             },
         ];
         seedServices.forEach((s) => this.services.set(s.id, s));
-        // 8. Seed SMS Providers
+        // 8. SMS Providers (Initial carrier balances start at 0.0 until live API poll or deposit)
         const seedProviders = [
             {
                 id: 'prv-5sim',
@@ -229,14 +191,14 @@ class MemoryStore {
                 code: 'five_sim',
                 enabled: true,
                 priority: 1,
-                balance: 4850.5,
+                balance: 0.0,
                 currency: 'RUB',
                 minBalanceAlert: 500.0,
                 apiHealth: 'operational',
                 pingMs: 42,
-                successRate: 98.4,
+                successRate: 100.0,
                 lastCheckedAt: 'Just now',
-                totalNumbersAssigned: 1420,
+                totalNumbersAssigned: 0,
             },
             {
                 id: 'prv-onlinesim',
@@ -244,85 +206,35 @@ class MemoryStore {
                 code: 'online_sim',
                 enabled: true,
                 priority: 2,
-                balance: 2310.0,
+                balance: 0.0,
                 currency: 'RUB',
                 minBalanceAlert: 400.0,
                 apiHealth: 'operational',
                 pingMs: 65,
-                successRate: 96.8,
-                lastCheckedAt: '1 min ago',
-                totalNumbersAssigned: 890,
+                successRate: 100.0,
+                lastCheckedAt: 'Just now',
+                totalNumbersAssigned: 0,
             },
             {
                 id: 'prv-smsman',
                 name: 'SMS-Man',
                 code: 'sms_man',
-                enabled: true,
+                enabled: false,
                 priority: 3,
-                balance: 1150.2,
+                balance: 0.0,
                 currency: 'RUB',
                 minBalanceAlert: 350.0,
                 apiHealth: 'operational',
                 pingMs: 94,
-                successRate: 94.2,
-                lastCheckedAt: '3 mins ago',
-                totalNumbersAssigned: 410,
+                successRate: 100.0,
+                lastCheckedAt: 'Just now',
+                totalNumbersAssigned: 0,
             },
         ];
         seedProviders.forEach((p) => this.providers.set(p.id, p));
-        // 9. Seed Completed Past Demo Orders
-        const sampleCompletedOrder = {
-            id: 'ORD-781923',
-            userId: demoCustomer.id,
-            serviceId: 'srv-telegram',
-            serviceName: 'Telegram',
-            serviceIcon: 'Send',
-            countryCode: 'IN',
-            countryName: 'India',
-            countryFlag: '🇮🇳',
-            providerId: 'prv-5sim',
-            providerName: '5SIM',
-            providerOrderId: '5SIM-ORD-991823',
-            phoneNumber: '+91 98452 11984',
-            sellingPrice: 12.0,
-            providerCost: 4.2,
-            grossMargin: 7.8,
-            currency: 'INR',
-            status: 'COMPLETED',
-            orderedAt: '2026-03-05T14:22:10Z',
-            websiteExpiresAt: '2026-03-05T14:27:10Z',
-            completedAt: '2026-03-05T14:23:42Z',
-            smsReceived: {
-                id: 'SMS-881273',
-                sender: 'Telegram',
-                message: 'Your Telegram verification code is 842910. Do not share this code.',
-                otpCode: '842910',
-                receivedAt: '2026-03-05T14:23:42Z',
-            },
-        };
-        this.orders.set(sampleCompletedOrder.id, sampleCompletedOrder);
-        // 10. Seed Demo Support Ticket
-        const demoTicket = {
-            id: 'TCK-5541',
-            userId: demoCustomer.id,
-            subject: 'Inquiry regarding Developer REST API Webhooks',
-            category: 'API Integration',
-            message: 'Hello, I want to integrate your automated OTP reception into my testing pipeline. How do webhooks push received OTPs?',
-            status: 'resolved',
-            priority: 'medium',
-            createdAt: '2026-03-04T09:15:00Z',
-            updatedAt: '2026-03-04T10:30:00Z',
-            replies: [
-                {
-                    id: 'REP-101',
-                    sender: 'admin',
-                    senderName: 'Support Team',
-                    message: 'Hi! You can configure your Webhook URL under Dashboard > Settings. When an SMS arrives, our system sends a POST payload with orderId, phoneNumber, and otpCode immediately.',
-                    createdAt: '2026-03-04T10:30:00Z',
-                },
-            ],
-        };
-        this.tickets.set(demoTicket.id, demoTicket);
+        // 9. Clean empty maps for Orders and Support Tickets
+        this.orders.clear();
+        this.tickets.clear();
     }
 }
 exports.MemoryStore = MemoryStore;

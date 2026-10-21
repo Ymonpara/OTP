@@ -80,3 +80,59 @@ exports.walletRouter.post('/verify-payment', (0, validate_js_1.validate)(verifyP
         next(error);
     }
 });
+const razorpayCreateOrderSchema = zod_1.z.object({
+    amount: zod_1.z.number().positive('Recharge amount must be greater than zero'),
+});
+const razorpayVerifySchema = zod_1.z.object({
+    orderId: zod_1.z.string().min(1, 'Order ID is required'),
+    paymentId: zod_1.z.string().min(1, 'Payment ID is required'),
+    signature: zod_1.z.string().min(1, 'Signature is required'),
+    amount: zod_1.z.number().positive('Amount is required'),
+});
+exports.walletRouter.post('/razorpay/create-order', (0, validate_js_1.validate)(razorpayCreateOrderSchema), async (req, res, next) => {
+    try {
+        const { razorpayService } = await import('../services/razorpayService.js');
+        const userId = req.user.id;
+        const { amount } = req.body;
+        const orderResult = await razorpayService.createOrder(amount, userId);
+        if (!orderResult.success) {
+            res.status(400).json({
+                success: false,
+                error: orderResult.error || 'Failed to initialize Razorpay checkout',
+            });
+            return;
+        }
+        res.json({
+            success: true,
+            message: 'Razorpay order created successfully',
+            data: orderResult,
+        });
+    }
+    catch (error) {
+        next(error);
+    }
+});
+exports.walletRouter.post('/razorpay/verify-payment', (0, validate_js_1.validate)(razorpayVerifySchema), async (req, res, next) => {
+    try {
+        const { razorpayService } = await import('../services/razorpayService.js');
+        const userId = req.user.id;
+        const { orderId, paymentId, signature, amount } = req.body;
+        const verifyResult = razorpayService.verifySignature(orderId, paymentId, signature);
+        if (!verifyResult.verified) {
+            res.status(400).json({
+                success: false,
+                error: verifyResult.error || 'Signature verification failed',
+            });
+            return;
+        }
+        const rechargeResult = walletService_js_1.walletService.creditRecharge(userId, amount, paymentId, 'RAZORPAY');
+        res.json({
+            success: true,
+            message: `Payment verified! ₹${amount.toFixed(2)} credited to your wallet.`,
+            data: rechargeResult,
+        });
+    }
+    catch (error) {
+        next(error);
+    }
+});

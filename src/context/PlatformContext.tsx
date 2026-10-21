@@ -56,6 +56,7 @@ interface PlatformContextType {
   wallet: Wallet;
   transactions: WalletTransaction[];
   rechargeWallet: (amount: number, method: string) => Promise<{ success: boolean; txnId: string }>;
+  refreshWallet: () => Promise<void>;
   adminAdjustWallet: (
     userId: string,
     type: 'ADMIN_CREDIT' | 'ADMIN_DEBIT',
@@ -161,21 +162,29 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   useEffect(() => {
     queueMicrotask(() => {
       try {
-        const savedWallet = readCache('otp_wallet');
-        if (savedWallet) setWallet(JSON.parse(savedWallet));
+        const dataVer = readCache('otp_data_version');
+        if (dataVer !== 'v2_clean') {
+          // Invalidate legacy mock caches (orders, transactions, mock balances)
+          ['otp_orders', 'otp_txns', 'otp_wallet', 'otp_all_users', 'otp_tickets', 'otp_providers'].forEach((k) => {
+            try { localStorage.removeItem(k); } catch {}
+          });
+          writeCache('otp_data_version', 'v2_clean');
+        } else {
+          const savedWallet = readCache('otp_wallet');
+          if (savedWallet) setWallet(JSON.parse(savedWallet));
 
-        const savedTxns = readCache('otp_txns');
-        if (savedTxns) setTransactions(JSON.parse(savedTxns));
+          const savedTxns = readCache('otp_txns');
+          if (savedTxns) setTransactions(JSON.parse(savedTxns));
 
-        const savedOrders = readCache('otp_orders');
-        if (savedOrders) {
-          const parsedOrders: OtpOrder[] = JSON.parse(savedOrders);
-          setOrders(parsedOrders);
-          // Look for any currently active waiting order
-          const pending = parsedOrders.find(
-            (o) => o.status === 'WAITING_FOR_SMS' || o.status === 'NUMBER_ASSIGNED'
-          );
-          if (pending) setActiveOrder(pending);
+          const savedOrders = readCache('otp_orders');
+          if (savedOrders) {
+            const parsedOrders: OtpOrder[] = JSON.parse(savedOrders);
+            setOrders(parsedOrders);
+            const pending = parsedOrders.find(
+              (o) => o.status === 'WAITING_FOR_SMS' || o.status === 'NUMBER_ASSIGNED'
+            );
+            if (pending) setActiveOrder(pending);
+          }
         }
 
         const savedServices = readCache('otp_services');
@@ -483,6 +492,21 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setTransactions((prev) => [newTxn, ...prev]);
     playChime();
     return { success: true, txnId };
+  };
+
+  // Re-sync wallet balance and ledger with backend
+  const refreshWallet = async () => {
+    try {
+      const [walRes, txnRes] = await Promise.all([
+        api.wallet.getBalance(),
+        api.wallet.getTransactions(),
+      ]);
+      if (walRes.success && walRes.data?.wallet) setWallet(walRes.data.wallet);
+      if (txnRes.success && txnRes.data?.transactions) setTransactions(txnRes.data.transactions);
+      playChime();
+    } catch (err) {
+      console.warn('Failed to refresh wallet from backend:', err);
+    }
   };
 
   // Admin Manual Credit / Debit
@@ -966,6 +990,7 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         wallet,
         transactions,
         rechargeWallet,
+        refreshWallet,
         adminAdjustWallet,
         services,
         countries,

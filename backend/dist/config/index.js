@@ -19,4 +19,6 @@ exports.config = {
     smsManApiKey: process.env.SMSMAN_API_KEY || '',
     // RUB to INR conversion rate for wholesale provider billing calculation
     rubToInrRate: parseFloat(process.env.RUB_TO_INR_RATE || '1.10'),
+    razorpayKeyId: process.env.RAZORPAY_KEY_ID || '',
+    razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET || '',
 };

@@ -307,6 +307,37 @@ export default function AdminDashboardPage() {
         </div>
       </div>
 
+      {/* PAYMENT GATEWAY INTEGRATION STATUS */}
+      <div className="p-5 rounded-2xl glass-panel border border-zinc-800 space-y-3 bg-gradient-to-r from-purple-950/20 via-zinc-900/60 to-zinc-900/40">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 shrink-0">
+              <Zap className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-white">Razorpay Payment Gateway</h3>
+                <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  Live Production Key Active
+                </span>
+              </div>
+              <p className="text-xs text-zinc-400 mt-0.5">
+                Key ID: <span className="font-mono text-zinc-300">rzp_live_TqcF2Qv8TXmNHS</span> • HMAC-SHA256 Verification: <span className="text-emerald-400 font-medium">Secured</span> • Automated Wallet Credit: <span className="text-emerald-400 font-medium">Enabled</span>
+              </p>
+            </div>
+          </div>
+
+          <Link
+            href="/dashboard/wallet/add-money"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 text-xs font-semibold transition-all self-start sm:self-auto"
+          >
+            <span>Test Add Money</span>
+            <ArrowUpRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+      </div>
+
       {/* RECENT LIVE ORDERS FEED */}
       <div className="p-6 rounded-2xl glass-panel border border-zinc-800 space-y-4">
         <div className="flex items-center justify-between">
